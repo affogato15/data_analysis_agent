@@ -1,0 +1,233 @@
+[{
+  "id": "customer_ltv_top10",
+  "question": "Who are our top 10 customers by total spend?",
+  "business_logic": "Only completed orders contribute to customer spend.",
+  "metrics": [
+    "total_spend",
+    "total_orders"
+  ],
+  "tables_used": [
+    "users",
+    "orders",
+    "order_items"
+  ],
+  "sql": "SELECT\n    u.id AS customer_id,\n    CONCAT(u.first_name, ' ', u.last_name) AS customer_name,\n    COUNT(DISTINCT o.order_id) AS total_orders,\n    ROUND(SUM(oi.sale_price), 2) AS total_spend\nFROM `bigquery-public-data.thelook_ecommerce.users` u\nJOIN `bigquery-public-data.thelook_ecommerce.orders` o\n    ON u.id = o.user_id\nJOIN `bigquery-public-data.thelook_ecommerce.order_items` oi\n    ON o.order_id = oi.order_id\nWHERE o.status = 'Complete'\nGROUP BY\n    customer_id,\n    customer_name\nORDER BY total_spend DESC\nLIMIT 10;",
+  "report": "Customer spending is concentrated among a small subset of customers..."
+},
+  {
+    "id": "customer_repeat_purchase_rate",
+    "question": "What percentage of customers placed more than one completed order?",
+    "business_logic": "A repeat customer is defined as a customer with at least two completed orders.",
+    "metrics": [
+      "repeat_customers",
+      "total_customers",
+      "repeat_purchase_rate"
+    ],
+    "tables_used": [
+      "orders"
+    ],
+    "sql": "WITH customer_orders AS (\n    SELECT\n        user_id,\n        COUNT(DISTINCT order_id) AS completed_orders\n    FROM `bigquery-public-data.thelook_ecommerce.orders`\n    WHERE status = 'Complete'\n    GROUP BY user_id\n)\nSELECT\n    COUNT(*) AS total_customers,\n    SUM(CASE WHEN completed_orders >= 2 THEN 1 ELSE 0 END) AS repeat_customers,\n    ROUND(100 * SUM(CASE WHEN completed_orders >= 2 THEN 1 ELSE 0 END) / COUNT(*), 2) AS repeat_purchase_rate_pct\nFROM customer_orders;",
+    "report": "The repeat purchase rate shows what share of customers return after their first completed order. A low value may indicate weak retention, while a high value suggests stronger customer loyalty."
+  },
+  {
+    "id": "customer_revenue_by_age_group",
+    "question": "Which age groups generate the most revenue?",
+    "business_logic": "Revenue is attributed to the customer's age group and only completed orders are included.",
+    "metrics": [
+      "revenue",
+      "customers",
+      "orders"
+    ],
+    "tables_used": [
+      "users",
+      "orders",
+      "order_items"
+    ],
+    "sql": "SELECT\n    CASE\n        WHEN u.age < 25 THEN 'Under 25'\n        WHEN u.age BETWEEN 25 AND 34 THEN '25-34'\n        WHEN u.age BETWEEN 35 AND 44 THEN '35-44'\n        WHEN u.age BETWEEN 45 AND 54 THEN '45-54'\n        ELSE '55+'\n    END AS age_group,\n    COUNT(DISTINCT u.id) AS customers,\n    COUNT(DISTINCT o.order_id) AS orders,\n    ROUND(SUM(oi.sale_price), 2) AS revenue\nFROM `bigquery-public-data.thelook_ecommerce.users` u\nJOIN `bigquery-public-data.thelook_ecommerce.orders` o\n    ON u.id = o.user_id\nJOIN `bigquery-public-data.thelook_ecommerce.order_items` oi\n    ON o.order_id = oi.order_id\nWHERE o.status = 'Complete'\nGROUP BY age_group\nORDER BY revenue DESC;",
+    "report": "Revenue differs by age segment. The highest revenue age groups should be prioritized for targeted campaigns, but customer count should also be considered to avoid overvaluing very small segments."
+  },
+  {
+    "id": "product_top_revenue",
+    "question": "Which products generate the highest revenue?",
+    "business_logic": "Product revenue is calculated from completed orders using item sale price.",
+    "metrics": [
+      "revenue",
+      "units_sold"
+    ],
+    "tables_used": [
+      "products",
+      "orders",
+      "order_items"
+    ],
+    "sql": "SELECT\n    p.id AS product_id,\n    p.name AS product_name,\n    p.category,\n    COUNT(*) AS units_sold,\n    ROUND(SUM(oi.sale_price), 2) AS revenue\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.orders` o\n    ON oi.order_id = o.order_id\nJOIN `bigquery-public-data.thelook_ecommerce.products` p\n    ON oi.product_id = p.id\nWHERE o.status = 'Complete'\nGROUP BY product_id, product_name, p.category\nORDER BY revenue DESC\nLIMIT 20;",
+    "report": "Top revenue products are the main sales drivers. These products should be monitored for availability, pricing, and campaign support."
+  },
+  {
+    "id": "product_category_revenue",
+    "question": "Which product categories generate the most revenue?",
+    "business_logic": "Category performance is measured by total revenue from completed orders.",
+    "metrics": [
+      "revenue",
+      "units_sold",
+      "average_item_price"
+    ],
+    "tables_used": [
+      "products",
+      "orders",
+      "order_items"
+    ],
+    "sql": "SELECT\n    p.category,\n    COUNT(*) AS units_sold,\n    ROUND(SUM(oi.sale_price), 2) AS revenue,\n    ROUND(AVG(oi.sale_price), 2) AS average_item_price\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.orders` o\n    ON oi.order_id = o.order_id\nJOIN `bigquery-public-data.thelook_ecommerce.products` p\n    ON oi.product_id = p.id\nWHERE o.status = 'Complete'\nGROUP BY p.category\nORDER BY revenue DESC;",
+    "report": "Category revenue identifies the largest commercial segments. High revenue can come from high volume, high price, or both."
+  },
+  {
+    "id": "revenue_monthly_trend",
+    "question": "How has monthly revenue changed over time?",
+    "business_logic": "Monthly revenue is calculated from completed orders and grouped by item creation month.",
+    "metrics": [
+      "monthly_revenue",
+      "orders",
+      "units_sold"
+    ],
+    "tables_used": [
+      "orders",
+      "order_items"
+    ],
+    "sql": "SELECT\n    DATE_TRUNC(DATE(oi.created_at), MONTH) AS month,\n    COUNT(DISTINCT o.order_id) AS orders,\n    COUNT(*) AS units_sold,\n    ROUND(SUM(oi.sale_price), 2) AS monthly_revenue\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.orders` o\n    ON oi.order_id = o.order_id\nWHERE o.status = 'Complete'\nGROUP BY month\nORDER BY month;",
+    "report": "Monthly revenue trend helps identify growth, decline, and seasonality. Large deviations should be investigated against promotions, supply issues, and customer demand changes."
+  },
+  {
+    "id": "product_top_units_sold",
+    "question": "Which products are sold most frequently?",
+    "business_logic": "Product popularity is measured by units sold from completed orders.",
+    "metrics": ["units_sold", "revenue"],
+    "tables_used": ["products", "orders", "order_items"],
+    "sql": "SELECT\n    p.id AS product_id,\n    p.name AS product_name,\n    p.category,\n    COUNT(*) AS units_sold,\n    ROUND(SUM(oi.sale_price), 2) AS revenue\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.orders` o\n    ON oi.order_id = o.order_id\nJOIN `bigquery-public-data.thelook_ecommerce.products` p\n    ON oi.product_id = p.id\nWHERE o.status = 'Complete'\nGROUP BY product_id, product_name, p.category\nORDER BY units_sold DESC\nLIMIT 20;",
+    "report": "The most frequently sold products indicate demand volume. These items should be prioritized for inventory availability and replenishment."
+  },
+  {
+    "id": "product_high_revenue_low_volume",
+    "question": "Which products generate high revenue despite low sales volume?",
+    "business_logic": "High-revenue low-volume products are identified by revenue rank and relatively low unit count.",
+    "metrics": ["revenue", "units_sold", "average_item_price"],
+    "tables_used": ["products", "orders", "order_items"],
+    "sql": "SELECT\n    p.id AS product_id,\n    p.name AS product_name,\n    p.category,\n    COUNT(*) AS units_sold,\n    ROUND(SUM(oi.sale_price), 2) AS revenue,\n    ROUND(AVG(oi.sale_price), 2) AS average_item_price\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.orders` o\n    ON oi.order_id = o.order_id\nJOIN `bigquery-public-data.thelook_ecommerce.products` p\n    ON oi.product_id = p.id\nWHERE o.status = 'Complete'\nGROUP BY product_id, product_name, p.category\nHAVING units_sold <= 10\nORDER BY revenue DESC\nLIMIT 20;",
+    "report": "These products generate meaningful revenue despite limited volume, usually because of higher price points. They may be important for margin strategy but should not be evaluated by unit sales alone."
+  },
+  {
+    "id": "product_category_return_rate",
+    "question": "Which product categories have the highest return rates?",
+    "business_logic": "Return rate is calculated as returned items divided by all sold items in each category.",
+    "metrics": ["items_sold", "returned_items", "return_rate_pct"],
+    "tables_used": ["products", "order_items"],
+    "sql": "SELECT\n    p.category,\n    COUNT(*) AS items_sold,\n    SUM(CASE WHEN oi.returned_at IS NOT NULL THEN 1 ELSE 0 END) AS returned_items,\n    ROUND(100 * SUM(CASE WHEN oi.returned_at IS NOT NULL THEN 1 ELSE 0 END) / COUNT(*), 2) AS return_rate_pct\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.products` p\n    ON oi.product_id = p.id\nGROUP BY p.category\nORDER BY return_rate_pct DESC;",
+    "report": "Categories with high return rates may have product quality, sizing, description, or expectation mismatch issues. These categories should be reviewed before increasing marketing spend."
+  },
+  {
+    "id": "product_revenue_concentration",
+    "question": "How concentrated is revenue among our top products?",
+    "business_logic": "Revenue concentration is measured by each product's share of total completed-order revenue.",
+    "metrics": ["product_revenue", "revenue_share_pct", "cumulative_revenue_share_pct"],
+    "tables_used": ["products", "orders", "order_items"],
+    "sql": "WITH product_revenue AS (\n    SELECT\n        p.id AS product_id,\n        p.name AS product_name,\n        p.category,\n        ROUND(SUM(oi.sale_price), 2) AS revenue\n    FROM `bigquery-public-data.thelook_ecommerce.order_items` oi\n    JOIN `bigquery-public-data.thelook_ecommerce.orders` o\n        ON oi.order_id = o.order_id\n    JOIN `bigquery-public-data.thelook_ecommerce.products` p\n        ON oi.product_id = p.id\n    WHERE o.status = 'Complete'\n    GROUP BY product_id, product_name, p.category\n)\nSELECT\n    product_id,\n    product_name,\n    category,\n    revenue,\n    ROUND(100 * revenue / SUM(revenue) OVER (), 2) AS revenue_share_pct,\n    ROUND(100 * SUM(revenue) OVER (ORDER BY revenue DESC) / SUM(revenue) OVER (), 2) AS cumulative_revenue_share_pct\nFROM product_revenue\nORDER BY revenue DESC\nLIMIT 20;",
+    "report": "Revenue concentration shows dependency on a small number of products. High concentration increases business risk if top products face supply or demand issues."
+  },
+  {
+    "id": "revenue_yoy_growth",
+    "question": "How does this year's revenue compare to last year?",
+    "business_logic": "Year-over-year revenue compares completed-order revenue by calendar year.",
+    "metrics": ["year", "revenue", "yoy_growth_pct"],
+    "tables_used": ["orders", "order_items"],
+    "sql": "WITH yearly_revenue AS (\n    SELECT\n        EXTRACT(YEAR FROM DATE(oi.created_at)) AS year,\n        ROUND(SUM(oi.sale_price), 2) AS revenue\n    FROM `bigquery-public-data.thelook_ecommerce.order_items` oi\n    JOIN `bigquery-public-data.thelook_ecommerce.orders` o\n        ON oi.order_id = o.order_id\n    WHERE o.status = 'Complete'\n    GROUP BY year\n)\nSELECT\n    year,\n    revenue,\n    ROUND(100 * (revenue - LAG(revenue) OVER (ORDER BY year)) / LAG(revenue) OVER (ORDER BY year), 2) AS yoy_growth_pct\nFROM yearly_revenue\nORDER BY year;",
+    "report": "Year-over-year growth shows whether the business is expanding or contracting across calendar years. Declines should be investigated by category, geography, and customer segment."
+  },
+  {
+    "id": "revenue_by_country",
+    "question": "Which countries generate the highest revenue?",
+    "business_logic": "Country revenue is attributed using the customer's country and completed orders only.",
+    "metrics": ["country", "revenue", "orders", "customers"],
+    "tables_used": ["users", "orders", "order_items"],
+    "sql": "SELECT\n    u.country,\n    COUNT(DISTINCT u.id) AS customers,\n    COUNT(DISTINCT o.order_id) AS orders,\n    ROUND(SUM(oi.sale_price), 2) AS revenue\nFROM `bigquery-public-data.thelook_ecommerce.users` u\nJOIN `bigquery-public-data.thelook_ecommerce.orders` o\n    ON u.id = o.user_id\nJOIN `bigquery-public-data.thelook_ecommerce.order_items` oi\n    ON o.order_id = oi.order_id\nWHERE o.status = 'Complete'\nGROUP BY u.country\nORDER BY revenue DESC\nLIMIT 20;",
+    "report": "Revenue by country identifies the largest geographic markets. Countries with high revenue and high customer counts are priority markets for growth and retention."
+  },
+  {
+    "id": "revenue_quarterly_trend",
+    "question": "How has quarterly revenue changed over time?",
+    "business_logic": "Quarterly revenue is calculated from completed orders and grouped by calendar quarter.",
+    "metrics": ["quarter", "revenue", "orders", "units_sold"],
+    "tables_used": ["orders", "order_items"],
+    "sql": "SELECT\n    DATE_TRUNC(DATE(oi.created_at), QUARTER) AS quarter,\n    COUNT(DISTINCT o.order_id) AS orders,\n    COUNT(*) AS units_sold,\n    ROUND(SUM(oi.sale_price), 2) AS revenue\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.orders` o\n    ON oi.order_id = o.order_id\nWHERE o.status = 'Complete'\nGROUP BY quarter\nORDER BY quarter;",
+    "report": "Quarterly revenue trend smooths monthly volatility and helps executives assess medium-term business performance."
+  },
+  {
+    "id": "revenue_average_order_value_trend",
+    "question": "How has average order value changed over time?",
+    "business_logic": "Average order value is calculated as completed-order revenue divided by completed orders per month.",
+    "metrics": ["month", "revenue", "orders", "average_order_value"],
+    "tables_used": ["orders", "order_items"],
+    "sql": "WITH monthly_order_revenue AS (\n    SELECT\n        DATE_TRUNC(DATE(oi.created_at), MONTH) AS month,\n        o.order_id,\n        SUM(oi.sale_price) AS order_revenue\n    FROM `bigquery-public-data.thelook_ecommerce.order_items` oi\n    JOIN `bigquery-public-data.thelook_ecommerce.orders` o\n        ON oi.order_id = o.order_id\n    WHERE o.status = 'Complete'\n    GROUP BY month, o.order_id\n)\nSELECT\n    month,\n    COUNT(DISTINCT order_id) AS orders,\n    ROUND(SUM(order_revenue), 2) AS revenue,\n    ROUND(AVG(order_revenue), 2) AS average_order_value\nFROM monthly_order_revenue\nGROUP BY month\nORDER BY month;",
+    "report": "Average order value shows whether customers are spending more or less per transaction. Changes may reflect pricing, product mix, promotions, or customer behavior shifts."
+  },
+  {
+    "id": "revenue_monthly_seasonality",
+    "question": "Which months usually generate the highest revenue?",
+    "business_logic": "Seasonality is estimated by aggregating completed-order revenue by month of year across all available years.",
+    "metrics": ["month_of_year", "revenue", "orders"],
+    "tables_used": ["orders", "order_items"],
+    "sql": "SELECT\n    EXTRACT(MONTH FROM DATE(oi.created_at)) AS month_number,\n    FORMAT_DATE('%B', DATE(2000, EXTRACT(MONTH FROM DATE(oi.created_at)), 1)) AS month_name,\n    COUNT(DISTINCT o.order_id) AS orders,\n    ROUND(SUM(oi.sale_price), 2) AS revenue\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.orders` o\n    ON oi.order_id = o.order_id\nWHERE o.status = 'Complete'\nGROUP BY month_number, month_name\nORDER BY revenue DESC;",
+    "report": "Monthly seasonality highlights recurring demand peaks. High-revenue months should be supported by inventory planning and marketing preparation."
+  },
+  {
+    "id": "operations_order_status_distribution",
+    "question": "How are orders distributed across different statuses?",
+    "business_logic": "Order status distribution shows the share of orders in each lifecycle state.",
+    "metrics": ["status", "orders", "order_share_pct"],
+    "tables_used": ["orders"],
+    "sql": "SELECT\n    status,\n    COUNT(DISTINCT order_id) AS orders,\n    ROUND(100 * COUNT(DISTINCT order_id) / SUM(COUNT(DISTINCT order_id)) OVER (), 2) AS order_share_pct\nFROM `bigquery-public-data.thelook_ecommerce.orders`\nGROUP BY status\nORDER BY orders DESC;",
+    "report": "Order status distribution helps detect operational bottlenecks. A high share of cancelled or returned orders should trigger deeper investigation."
+  },
+  {
+    "id": "operations_cancellation_rate_by_category",
+    "question": "Which product categories have the highest cancellation rates?",
+    "business_logic": "Cancellation rate is calculated as cancelled order items divided by total order items in each category.",
+    "metrics": ["category", "items", "cancelled_items", "cancellation_rate_pct"],
+    "tables_used": ["products", "orders", "order_items"],
+    "sql": "SELECT\n    p.category,\n    COUNT(*) AS items,\n    SUM(CASE WHEN o.status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled_items,\n    ROUND(100 * SUM(CASE WHEN o.status = 'Cancelled' THEN 1 ELSE 0 END) / COUNT(*), 2) AS cancellation_rate_pct\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.orders` o\n    ON oi.order_id = o.order_id\nJOIN `bigquery-public-data.thelook_ecommerce.products` p\n    ON oi.product_id = p.id\nGROUP BY p.category\nORDER BY cancellation_rate_pct DESC;",
+    "report": "Categories with high cancellation rates may indicate stock availability issues, pricing friction, or fulfillment problems."
+  },
+  {
+    "id": "operations_average_fulfillment_time_by_category",
+    "question": "What is the average fulfillment time by product category?",
+    "business_logic": "Fulfillment time is measured as the time between item creation and shipment for shipped items.",
+    "metrics": ["category", "average_fulfillment_days", "shipped_items"],
+    "tables_used": ["products", "order_items"],
+    "sql": "SELECT\n    p.category,\n    COUNT(*) AS shipped_items,\n    ROUND(AVG(TIMESTAMP_DIFF(oi.shipped_at, oi.created_at, HOUR)) / 24, 2) AS average_fulfillment_days\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.products` p\n    ON oi.product_id = p.id\nWHERE oi.shipped_at IS NOT NULL\nGROUP BY p.category\nORDER BY average_fulfillment_days DESC;",
+    "report": "Average fulfillment time by category identifies areas where operations are slower. Long fulfillment times can affect customer satisfaction and repeat purchases."
+  },
+  {
+    "id": "operations_shipping_delay_by_product",
+    "question": "Which products experience the longest shipping delays?",
+    "business_logic": "Shipping delay is measured as the time between item creation and shipment for shipped items.",
+    "metrics": ["product", "average_shipping_delay_days", "shipped_items"],
+    "tables_used": ["products", "order_items"],
+    "sql": "SELECT\n    p.id AS product_id,\n    p.name AS product_name,\n    p.category,\n    COUNT(*) AS shipped_items,\n    ROUND(AVG(TIMESTAMP_DIFF(oi.shipped_at, oi.created_at, HOUR)) / 24, 2) AS average_shipping_delay_days\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.products` p\n    ON oi.product_id = p.id\nWHERE oi.shipped_at IS NOT NULL\nGROUP BY product_id, product_name, p.category\nHAVING shipped_items >= 5\nORDER BY average_shipping_delay_days DESC\nLIMIT 20;",
+    "report": "Products with long shipping delays may have supplier, warehouse, or fulfillment constraints. These products should be reviewed before promotional campaigns."
+  },
+  {
+    "id": "operations_revenue_lost_to_returns",
+    "question": "How much revenue is lost due to returned products?",
+    "business_logic": "Returned revenue is estimated as the sale price of items with a non-null returned_at timestamp.",
+    "metrics": ["returned_items", "returned_revenue"],
+    "tables_used": ["products", "order_items"],
+    "sql": "SELECT\n    p.category,\n    COUNT(*) AS returned_items,\n    ROUND(SUM(oi.sale_price), 2) AS returned_revenue\nFROM `bigquery-public-data.thelook_ecommerce.order_items` oi\nJOIN `bigquery-public-data.thelook_ecommerce.products` p\n    ON oi.product_id = p.id\nWHERE oi.returned_at IS NOT NULL\nGROUP BY p.category\nORDER BY returned_revenue DESC;",
+    "report": "Returned revenue estimates the financial exposure from product returns. Categories with high returned revenue should be reviewed for product quality, sizing, and customer expectation issues."
+  },
+  {
+    "id": "customer_new_vs_returning_revenue",
+    "question": "How much revenue comes from new versus returning customers?",
+    "business_logic": "A customer's first completed order is classified as new customer revenue; later completed orders are returning customer revenue.",
+    "metrics": ["customer_type", "orders", "revenue"],
+    "tables_used": ["orders", "order_items"],
+    "sql": "WITH completed_orders AS (\n    SELECT\n        o.user_id,\n        o.order_id,\n        DATE(o.created_at) AS order_date,\n        SUM(oi.sale_price) AS order_revenue\n    FROM `bigquery-public-data.thelook_ecommerce.orders` o\n    JOIN `bigquery-public-data.thelook_ecommerce.order_items` oi\n        ON o.order_id = oi.order_id\n    WHERE o.status = 'Complete'\n    GROUP BY o.user_id, o.order_id, order_date\n), ranked_orders AS (\n    SELECT\n        *,\n        ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY order_date, order_id) AS order_rank\n    FROM completed_orders\n)\nSELECT\n    CASE WHEN order_rank = 1 THEN 'new_customer' ELSE 'returning_customer' END AS customer_type,\n    COUNT(DISTINCT order_id) AS orders,\n    ROUND(SUM(order_revenue), 2) AS revenue\nFROM ranked_orders\nGROUP BY customer_type\nORDER BY revenue DESC;",
+    "report": "New versus returning customer revenue shows whether growth is acquisition-led or retention-led. A healthy business usually needs both strong new customer acquisition and meaningful returning customer revenue."
+  }
+]

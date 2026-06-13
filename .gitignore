@@ -1,0 +1,15 @@
+.venv/
+.env
+
+.idea/
+
+__pycache__/
+*.pyc
+
+.DS_Store
+
+logs/agent_runs.jsonl
+feedback/candidate_trios.jsonl
+saved_reports/reports.json
+
+vector_store/

@@ -1,0 +1,14 @@
+{
+  "manager_a": {
+    "report_format": "table_with_comments",
+    "tone": "concise executive"
+  },
+  "manager_b": {
+    "report_format": "bullet_points",
+    "tone": "direct and brief"
+  },
+  "alex": {
+    "report_format": "table_with_comments",
+    "tone": "direct and brief"
+  }
+}

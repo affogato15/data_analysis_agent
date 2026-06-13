@@ -1,0 +1,42 @@
+project_id: 'ai-analytics-agent-499122'
+
+max_bytes_billed: 100000000
+
+llm:
+  provider: 'openai'
+  model: "gpt-4o-mini"
+
+retrieval:
+  top_k: 3
+
+agent:
+  max_sql_retries: 2
+
+security:
+  allowed_tables:
+    - 'orders'
+    - 'order_items'
+    - 'products'
+    - 'users'
+
+paths:
+  golden_bucket: "golden_bucket/trios.json"
+  vector_store: "vector_store"
+  candidate_trios: "feedback/candidate_trios.jsonl"
+  user_preferences: "memory/user_preferences.json"
+  saved_reports: "saved_reports/reports.json"
+
+schema:
+  relationships:
+    - "orders.user_id -> users.id"
+    - "order_items.order_id -> orders.order_id"
+    - "order_items.product_id -> products.id"
+
+  business_rules:
+    - "Use orders.status = 'Complete' for revenue, spend, and customer value metrics."
+    - "Never select users.email, users.phone."
+    - "Prefer aggregated outputs over raw transaction-level outputs."
+
+report_persona:
+  tone: "concise executive"
+  format: "bullet_points"
