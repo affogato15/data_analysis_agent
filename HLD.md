@@ -15,40 +15,50 @@ The prototype is implemented with:
 * **JSON/JSONL local stores** for preferences, feedback, traces, and saved reports
 
 ---
+Reasoning:
 
+- **OpenAI API** — Gemini was initially considered because of the free-tier option, but the setup was blocked by billing/credit limitations. OpenAI was used for the prototype because it was already available and supports reliable structured outputs. Local LLMs via Ollama I didn't consider because of latency for big models or quality for smaller ones.
+- **Model: `gpt-4o-mini`** — selected as a low-cost, low-latency model suitable for a PoC/MVP. The full prototype run cost was approximately $0.02 for ~88k tokens. In production, model choice should be re-evaluated based on accuracy, latency, cost, and compliance requirements.
+- **ChromaDB** — selected as a lightweight local vector store for the prototype. It supports semantic retrieval through vector similarity search over Golden Bucket embeddings. In production, I would consider a managed or more scalable vector database such as Qdrant, Weaviate, Pinecone, or Vertex AI Vector Search.
+___
 ## 2. Architecture
 
 ```mermaid
 flowchart TD
 
 User[Manager CLI User] --> CLI[CLI App]
-
 CLI --> Graph[LangGraph Agent]
 
+CLI <--> Preferences[User Preferences Store]
+CLI <--> SavedReports[Saved Reports Store]
+CLI --> Feedback[Feedback / Candidate Trios]
+
 Graph --> Retriever[Golden Retriever]
-Retriever --> Chroma[Chroma Vector Store]
-Chroma --> GoldenBucket[Golden Bucket: Q-SQL-Report Trios]
+Retriever <--> Chroma[Chroma Vector Store]
+Chroma <--> GoldenBucket[Golden Bucket: Q-SQL-Report Trios]
 
-Graph --> SQLGen[SQL Generator]
-SQLGen --> LLM[OpenAI LLM]
+Retriever -->|retrieved examples| SQLGen[SQL Generator]
 
-Graph --> Validator[SQL Validator]
+Graph --> SQLGen
+SQLGen --> Validator[SQL Validator]
+
 Validator --> Executor[BigQuery Executor]
-Executor --> BQ[BigQuery: thelook_ecommerce]
+Executor <--> BQ[BigQuery: thelook_ecommerce]
 
-Graph --> Repair[SQL Repair]
-Repair --> LLM
+Executor -->|success: dataframe| ReportGen[Report Generator]
+Executor -->|SQL error| Repair[SQL Repair]
 
-Graph --> ReportGen[Report Generator]
-ReportGen --> LLM
+Repair --> Validator
+
+Preferences --> ReportGen
 
 ReportGen --> PIIMasker[PII Masker]
 PIIMasker --> CLI
 
+ReportGen -->|positive feedback candidate| Feedback
+Feedback -. analyst approval .-> GoldenBucket
+
 Graph --> Trace[JSONL Observability Traces]
-CLI --> Feedback[Feedback / Candidate Trios]
-CLI --> Preferences[User Preferences Store]
-CLI --> SavedReports[Saved Reports Store]
 ```
 
 ---
