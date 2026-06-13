@@ -55,7 +55,7 @@ Before running the project, install:
 Clone the repository:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/affogato15/data_analysis_agent.git
 cd data_analysis_agent
 ```
 Install UV
