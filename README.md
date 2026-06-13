@@ -94,7 +94,33 @@ OPENAI_API_KEY=your_openai_api_key
 ```
 
 ---
+## Google Cloud Setup
 
+1. Create a Google Cloud Project.
+
+2. Enable the BigQuery API.
+
+3. Install Google Cloud SDK.
+
+4. Authenticate:
+
+```bash
+gcloud auth application-default login
+```
+
+5. Set your project:
+
+```bash
+gcloud config set project YOUR_PROJECT_ID
+```
+### Configure Project ID
+
+Update `app/config.yaml`:
+
+```yaml
+project_id: YOUR_PROJECT_ID
+```
+___
 ## Google Cloud Authentication
 
 Authenticate with Google Cloud:
