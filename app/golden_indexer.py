@@ -108,5 +108,6 @@ if __name__ == "__main__":
 
         examples = retriever.retrieve(q, top_k=3)
 
+        print("\nRETRIEVED EXAMPLES:")
         for ex in examples:
             print("-", ex["question"])
